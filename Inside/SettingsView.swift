@@ -322,7 +322,7 @@ struct AboutAppViewBox: View {
                     .foregroundColor(.black)
                 Text("-------------------------")
                     .foregroundColor(.gray)
-                Text("Version 1.0.0")
+                Text("Version 1.6")
                     .foregroundColor(.black)
             }
             .padding()
