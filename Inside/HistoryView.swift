@@ -6,6 +6,8 @@ struct HistoryView: View {
     @ObservedObject var historyManager = ScanHistoryManager.shared
     @State private var searchText: String = ""
     @State private var selectedScan: ScanEntry? = nil   // <- use item sheet
+    @State private var pendingDelete: ScanEntry? = nil
+    @State private var showAddMealSheet = false
 
     var filteredScans: [ScanEntry] {
         if searchText.isEmpty { return historyManager.scans }
@@ -36,21 +38,64 @@ struct HistoryView: View {
                     .cornerRadius(20)
                     .padding(.horizontal)
 
-                    // MARK: - Scan Cards
-                    VStack(spacing: 12) {
-                        ForEach(filteredScans) { scan in
-                            Button(action: {
-                                selectedScan = scan            // <- set item; triggers sheet(item:)
-                            }) {
-                                SavedMealCardView(scan: scan) {
-                                    historyManager.toggleBookmark(scan)
+                    // MARK: - Scan Cards or Placeholder
+                    if filteredScans.isEmpty {
+                        VStack(spacing: 16) {
+                            Image(systemName: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                                .font(.system(size: 44))
+                                .foregroundColor(Color("PrimaryGreen").opacity(0.8))
+                                .padding(.bottom, 4)
+                            
+                            Text("No scanned meals yet.")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.black)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 24)
+                            Text("Click the green plus button below to scan your first meal.")
+                                .font(.system(size: 17, weight: .regular))
+                                .foregroundColor(.black)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 24)
+                            
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 300)
+                        .padding()
+                        .sheet(isPresented: $showAddMealSheet) {
+                            AddMealOptionsView(
+                                onDescribeMealTap: {},
+                                onUploadImageTap: {},
+                                onTakePhotoTap: {},
+                                onScanBarcodeTap: {}
+                            )
+                            .presentationDetents([.fraction(0.58)])
+                            .presentationDragIndicator(.hidden)
+                            .presentationBackground(Color.white)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 300)
+                        .padding()
+                    } else {
+                        VStack(spacing: 12) {
+                            ForEach(filteredScans) { scan in
+                                Button(action: {
+                                    selectedScan = scan            // <- set item; triggers sheet(item:)
+                                }) {
+                                    SavedMealCardView(scan: scan) {
+                                        historyManager.toggleBookmark(scan)
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.horizontal)
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        pendingDelete = scan
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
                                 }
                             }
-                            .buttonStyle(.plain)
-                            .padding(.horizontal)
                         }
+                        .padding(.bottom, 20)
                     }
-                    .padding(.bottom, 20)
                 }
             }
             .navigationBarHidden(true)
@@ -66,6 +111,22 @@ struct HistoryView: View {
                 onClose: { selectedScan = nil }
             )
             .id(s.id) // ensure a fresh ResultView per selection
+        }
+        .alert("Delete Meal?", isPresented: Binding(
+            get: { pendingDelete != nil },
+            set: { if !$0 { pendingDelete = nil } }
+        )) {
+            Button("Delete", role: .destructive) {
+                if let toDelete = pendingDelete {
+                    historyManager.removeScan(toDelete)
+                }
+                pendingDelete = nil
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDelete = nil
+            }
+        } message: {
+            Text("Are you sure you want to delete this meal from your history?")
         }
     }
 }

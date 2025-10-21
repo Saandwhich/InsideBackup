@@ -5,52 +5,94 @@ struct WelcomeView: View {
     var onStart: () -> Void
 
     // tweak this if you want the video slightly larger/smaller
-    private let videoHeight: CGFloat = 500
+    private var videoHeight: CGFloat {
+        let screenHeight = UIScreen.main.bounds.height
+        // Use ~42% of screen height, clamped so it looks good on small and large phones
+        return min(max(screenHeight * 0.65, 280), 520)
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            
-            // Top video — pinned at top, fixed height, won't be overlapped
-            LoopingVideoView(videoName: "Demo", videoType: "mp4")
-                .frame(height: videoHeight)
-                .cornerRadius(16)
-                .padding(.horizontal)
-                .padding(.top, 75)
+        ZStack {
+            Color(.systemBackground).ignoresSafeArea()
 
-            Spacer() // pushes the content below the video
-
-            // Text block and button — sits at the bottom area
-            VStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Know What’s                  Inside Your Food                With Just A Picture")
+            VStack(spacing: 0) {
+                // Top title section
+                VStack(spacing: 8) {
+                    Text("Inside")
                         .font(.system(size: 40, weight: .bold))
+                        .tracking(-0.8)
                         .foregroundColor(Color("PrimaryGreen"))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
                         .fixedSize(horizontal: false, vertical: true)
-
-                    Text("Inside helps empower people with dietary restrictions, to eat with confidence by using AI to analyze meals for allergens, additives, and dietary preferences.")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .minimumScaleFactor(0.85)
                 }
-                .padding(.horizontal, 24)
+                .frame(maxWidth: .infinity, alignment: .top)
 
-                Button(action: {
-                    onStart()
-                }) {
+                // Flexible space to help center the video on taller screens
+                Spacer(minLength: 12)
+
+                // Centered video with dynamic height
+                LoopingVideoView(videoName: "Demo", videoType: "mp4")
+                    .frame(height: videoHeight)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+
+                // Flexible space below video
+                Spacer(minLength: 12)
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            VStack(spacing: 10) {
+                Text("Know Whats Inside Your Food")
+                    .font(.system(size: 36, weight: .bold))
+                    .tracking(-0.8)
+                    .foregroundColor(Color("PrimaryGreen"))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .minimumScaleFactor(0.85)
+
+                Button(action: { onStart() }) {
                     Text("Get Started")
                         .foregroundColor(.white)
-                        .fontWeight(.bold)
+                        .font(.system(size: 18, weight: .bold))
+                        .tracking(-0.36)
                         .frame(maxWidth: .infinity)
-                        .padding()
+                        .padding(.vertical, 18)
+                        .padding(.horizontal, 16)
                         .background(Color("PrimaryGreen"))
                         .cornerRadius(28)
-                        .padding(.horizontal, 24)
                 }
+                .padding(.top, 4)
+                .padding(.horizontal, 24)
+
+                HStack(spacing: 4) {
+                    Link(destination: URL(string: "https://insideapp.framer.ai/privacy-policy")!) {
+                        Text("Privacy Policy")
+                            .font(.system(size: 16, weight: .bold))
+                            .tracking(-0.24)
+                            .foregroundColor(Color("PrimaryGreen"))
+                    }
+                    Text("and")
+                        .font(.system(size: 16))
+                        .tracking(-0.24)
+                        .foregroundColor(.gray)
+                    Link(destination: URL(string: "https://insideapp.framer.ai/terms-of-use-and-disclaimer")!) {
+                        Text("Terms of Use")
+                            .font(.system(size: 16, weight: .bold))
+                            .tracking(-0.24)
+                            .foregroundColor(Color("PrimaryGreen"))
+                    }
+                }
+                .padding(.bottom, 12)
             }
-            .padding(.bottom, 32)
+            .padding(.top, 8)
+            .padding(.horizontal, 16)
+            .background(Color(.systemBackground).opacity(0.95))
         }
-        .edgesIgnoringSafeArea(.top) // video can extend into the top safe area if needed
-        .background(Color(.systemBackground)) // ensure the rest of the screen uses the system background
     }
 }
 

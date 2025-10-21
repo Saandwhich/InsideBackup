@@ -11,11 +11,6 @@ struct InsideApp: App {
             OnboardingFlowView()
                 .environmentObject(appState)
                 .environmentObject(historyManager)
-                .onAppear {
-                    Task { @MainActor in
-                        locationManager.requestLocationPermission()
-                    }
-                }
         }
     }
 }

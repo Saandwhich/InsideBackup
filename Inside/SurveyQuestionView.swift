@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct SurveyQuestionView: View {
     @ObservedObject var manager: SurveyManager
@@ -7,14 +8,31 @@ struct SurveyQuestionView: View {
     let onComplete: () -> Void
 
     @State private var searchText: String = ""
+    @State private var nameInput: String = ""
     @State private var showCustomInputPopup = false
     @State private var customInput: String = ""
-    @State private var nameInput: String = ""
 
+    // Only question steps for progress bar and navigation
+    var questionSteps: [SurveyQuestion] {
+        manager.steps.compactMap { step in
+            if case .question(let q) = step { return q }
+            return nil
+        }
+    }
 
+    // Filter options for search
     var filteredOptions: [String] {
-        let all = question.options
-        if searchText.isEmpty || !question.isMultiSelect || manager.currentIndex == 2 {
+        if manager.currentIndex == 0 { return [] }
+        // Start with the question's options
+        var all = question.options
+        // Include any already-selected answers (e.g., custom entries) so they appear as options
+        if let selected = manager.answers[manager.currentIndex] {
+            for item in selected where !all.contains(item) {
+                all.append(item)
+            }
+        }
+        // Apply search only when enabled and for multi-select
+        if searchText.isEmpty || !question.isMultiSelect || !question.showsSearchBar {
             return all
         } else {
             return all.filter { $0.localizedCaseInsensitiveContains(searchText) }
@@ -24,13 +42,20 @@ struct SurveyQuestionView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Progress Bar
-            ProgressView(value: Double(manager.currentIndex + 1), total: Double(manager.questions.count))
-                .accentColor(Color("PrimaryGreen"))
-                .frame(height: 10)
-                .background(Color(.systemGray5))
-                .cornerRadius(5)
-                .padding(.top, 20)
-                .padding(.horizontal)
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color(.systemGray5))
+                    .frame(height: 10)
+                GeometryReader { geo in
+                    let progress = CGFloat(manager.steps.isEmpty ? 0 : (manager.currentIndex + 1)) / CGFloat(max(manager.steps.count, 1))
+                    Capsule()
+                        .fill(Color("PrimaryGreen"))
+                        .frame(width: geo.size.width * progress, height: 10)
+                }
+            }
+            .frame(height: 10)
+            .padding(.top, 20)
+            .padding(.horizontal)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
@@ -48,13 +73,14 @@ struct SurveyQuestionView: View {
                             .cornerRadius(24)
                             .accentColor(Color("PrimaryGreen"))
                             .padding(.horizontal, 24)
-                            .onChange(of: nameInput) { oldValue, newValue in
+                            .onChange(of: nameInput) { newValue in
                                 manager.answers[manager.currentIndex] = [newValue]
+                                manager.saveDraft()
                             }
                     }
 
-                    // Search Bar (only multi-select)
-                    if question.isMultiSelect && manager.currentIndex != 2 {
+                    // Search Bar (multi-select)
+                    if question.isMultiSelect && question.showsSearchBar {
                         HStack {
                             Image(systemName: "magnifyingglass")
                                 .foregroundColor(.gray)
@@ -67,25 +93,29 @@ struct SurveyQuestionView: View {
                         .padding(.horizontal, 24)
                     }
 
-                    // Options
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(filteredOptions, id: \.self) { option in
-                            let selected = manager.answers[manager.currentIndex] ?? []
+                    if manager.currentIndex != 0 {
+                        VStack(alignment: .leading, spacing: 12) {
+                            ForEach(filteredOptions, id: \.self) { option in
+                                let selected = manager.answers[manager.currentIndex] ?? []
 
-                            if question.isMultiSelect {
-                                // Multi-select style
                                 Button(action: {
-                                    var updated = selected
-                                    if updated.contains(option) {
-                                        updated.removeAll { $0 == option }
+                                    UISelectionFeedbackGenerator().selectionChanged()
+                                    if question.isMultiSelect {
+                                        var updated = selected
+                                        if updated.contains(option) {
+                                            updated.removeAll { $0 == option }
+                                        } else {
+                                            updated.append(option)
+                                        }
+                                        manager.answers[manager.currentIndex] = updated
+                                        manager.saveDraft()
                                     } else {
-                                        updated.append(option)
+                                        manager.answers[manager.currentIndex] = [option]
+                                        manager.saveDraft()
                                     }
-                                    manager.answers[manager.currentIndex] = updated
                                 }) {
                                     Text(option)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .multilineTextAlignment(.leading)
+                                        .frame(maxWidth: .infinity, alignment: question.optionAlignmentLeading ? .leading : .center)
                                         .padding()
                                         .background(
                                             selected.contains(option)
@@ -98,39 +128,21 @@ struct SurveyQuestionView: View {
                                         .cornerRadius(16)
                                 }
                                 .padding(.horizontal, 24)
-                            } else {
-                                // Single-select (styled like diet/allergen buttons)
+                            }
+                            if question.allowsCustomInput {
                                 Button(action: {
-                                    manager.answers[manager.currentIndex] = [option]
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    showCustomInputPopup = true
                                 }) {
-                                    Text(option)
+                                    Text("➕ Add your own")
                                         .frame(maxWidth: .infinity, alignment: .leading)
-                                        .multilineTextAlignment(.leading)
                                         .padding()
-                                        .background(
-                                            selected.contains(option)
-                                                ? Color("PrimaryGreen")
-                                                : Color(.systemGray6)
-                                        )
-                                        .foregroundColor(
-                                            selected.contains(option) ? .white : .primary
-                                        )
+                                        .background(Color(.systemGray6))
+                                        .foregroundColor(.primary)
                                         .cornerRadius(16)
                                 }
                                 .padding(.horizontal, 24)
                             }
-                        }
-
-                        if question.allowsCustomInput {
-                            Button(action: { showCustomInputPopup = true }) {
-                                Text("➕ Add your own")
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding()
-                                    .background(Color(.systemGray6))
-                                    .foregroundColor(.primary)
-                                    .cornerRadius(16)
-                            }
-                            .padding(.horizontal, 24)
                         }
                     }
 
@@ -145,6 +157,7 @@ struct SurveyQuestionView: View {
                 HStack(spacing: 16) {
                     // Back Button
                     Button(action: {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         searchText = ""
                         if manager.currentIndex == 0 {
                             onBackToWelcome()
@@ -163,14 +176,9 @@ struct SurveyQuestionView: View {
 
                     // Continue Button
                     Button(action: {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         searchText = ""
-                        if manager.currentIndex < manager.questions.count - 1 {
-                            manager.currentIndex += 1
-                        } else {
-                            // persist profile and integrate severities
-                            manager.saveProfile()
-                            onComplete()
-                        }
+                        manager.nextStep()
                     }) {
                         Text("Continue")
                             .fontWeight(.bold)
@@ -188,47 +196,58 @@ struct SurveyQuestionView: View {
             .navigationBarBackButtonHidden(true)
         }
         .sheet(isPresented: $showCustomInputPopup) {
-            VStack(spacing: 24) {
-                Text("Enter or describe your allergen or diet")
+            VStack(spacing: 16) {
+                Text("Add your own option")
                     .font(.headline)
-                    .padding(.top)
+                    .padding(.top, 20)
 
-                TextField("e.g. sunflower oil", text: $customInput)
+                TextField("Your option", text: $customInput)
                     .padding(12)
                     .background(Color(.systemGray6))
-                    .cornerRadius(16)
-                    .accentColor(Color("PrimaryGreen"))
-                    .padding(.horizontal)
+                    .cornerRadius(12)
+                    .padding(.horizontal, 24)
 
-                Button("Add") {
-                    if !customInput.isEmpty {
-                        if !question.options.contains(customInput) {
-                            manager.questions[manager.currentIndex].options.append(customInput)
-                        }
-                        var updated = manager.answers[manager.currentIndex] ?? []
-                        updated.append(customInput)
-                        manager.answers[manager.currentIndex] = updated
-
+                HStack {
+                    Button("Cancel") {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        customInput = ""
+                        showCustomInputPopup = false
                     }
-                    showCustomInputPopup = false
-                    customInput = ""
-                }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color("PrimaryGreen"))
-                .foregroundColor(.white)
-                .cornerRadius(20)
-                .padding(.horizontal)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .foregroundColor(.red)
+                    .background(Color(.systemGray5))
+                    .cornerRadius(12)
 
-                Button("Cancel") {
-                    showCustomInputPopup = false
-                    customInput = ""
-                }
-                .foregroundColor(.red)
+                    Button("Add") {
+                        let trimmed = customInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimmed.isEmpty else { return }
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
 
-                Spacer()
+                        // Store the custom input in the answers without mutating the question model
+                        var currentAnswers = manager.answers[manager.currentIndex] ?? []
+                        if question.isMultiSelect {
+                            if !currentAnswers.contains(trimmed) {
+                                currentAnswers.append(trimmed)
+                            }
+                        } else {
+                            currentAnswers = [trimmed]
+                        }
+                        manager.answers[manager.currentIndex] = currentAnswers
+                        manager.saveDraft()
+
+                        customInput = ""
+                        showCustomInputPopup = false
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color("PrimaryGreen"))
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 20)
             }
-            .padding(.top)
         }
     }
 }

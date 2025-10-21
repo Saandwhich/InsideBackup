@@ -105,6 +105,7 @@ final class ScanHistoryManager: ObservableObject {
     
     private init() { loadScans() }
     
+    @discardableResult
     func addScan(name: String,
                  ingredients: [String],
                  score: Int,
@@ -113,9 +114,11 @@ final class ScanHistoryManager: ObservableObject {
                  image: UIImage?,
                  date: Date = Date(),
                  location: CLLocationCoordinate2D? = nil,
-                 scanType: ScanType) {
+                 scanType: ScanType) -> ScanEntry {
+
         let imageData = image?.jpegData(compressionQuality: 0.8)
         let coordinate = location.map { CodableCoordinate(coordinate: $0) }
+
         let entry = ScanEntry(name: name,
                               ingredients: ingredients,
                               score: score,
@@ -125,8 +128,12 @@ final class ScanHistoryManager: ObservableObject {
                               scannedDate: date,
                               scannedLocation: coordinate,
                               scanType: scanType)
+
+        // insert at front
         scans.insert(entry, at: 0)
         saveScans()
+
+        return entry
     }
     
     func removeScan(_ scan: ScanEntry) {

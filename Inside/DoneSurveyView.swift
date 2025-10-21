@@ -1,3 +1,4 @@
+import UIKit
 import SwiftUI
 
 struct DoneSurveyView: View {
@@ -26,7 +27,11 @@ struct DoneSurveyView: View {
             Spacer()
 
             HStack(spacing: 16) {
-                Button(action: onBack) {
+                // Navigates back to survey via parent handler
+                Button(action: {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    onBack()
+                }) {
                     Image(systemName: "arrow.left")
                         .foregroundColor(.white)
                         .frame(width: 52, height: 52)
@@ -36,7 +41,10 @@ struct DoneSurveyView: View {
 
                 Spacer()
 
-                Button(action: onContinue) {
+                Button(action: {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    onContinue()
+                }) {
                     Text("Continue")
                         .fontWeight(.bold)
                         .foregroundColor(.white)

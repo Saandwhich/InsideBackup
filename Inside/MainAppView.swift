@@ -20,6 +20,11 @@ struct MainAppView: View {
 
     @StateObject private var locationManager = LocationManager.shared
 
+    @ObservedObject private var historyManager = ScanHistoryManager.shared
+    @State private var showFirstScanBanner: Bool = false
+    @State private var tabBarHeight: CGFloat = 0
+    @State private var addButtonSize: CGSize = .zero
+
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             VStack(spacing: 0) {
@@ -35,9 +40,16 @@ struct MainAppView: View {
                 .padding(.vertical, 14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
-                    Color.white
-                        .shadow(color: .black.opacity(0.05), radius: 8, y: -1)
-                        .ignoresSafeArea(edges: .bottom)
+                    GeometryReader { proxy in
+                        Color.white
+                            .onAppear { tabBarHeight = proxy.size.height }
+                            .onChange(of: proxy.size.height) { _, newValue in tabBarHeight = newValue }
+                            .overlay(
+                                Color.white
+                                    .shadow(color: .black.opacity(0.05), radius: 8, y: -1)
+                            )
+                    }
+                    .ignoresSafeArea(edges: .bottom)
                 )
             }
 
@@ -45,13 +57,20 @@ struct MainAppView: View {
             Button {
                 showAddMealOptions = true
             } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 78, height: 78)
-                    .background(Color("PrimaryGreen"))
-                    .clipShape(Circle())
-                    .shadow(color: Color.black.opacity(0.2), radius: 6, x: 0, y: 4)
+                ZStack {
+                    Image(systemName: "plus")
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 78, height: 78)
+                        .background(Color("PrimaryGreen"))
+                        .clipShape(Circle())
+                        .shadow(color: Color.black.opacity(0.2), radius: 6, x: 0, y: 4)
+                }
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.onAppear { addButtonSize = proxy.size }
+                    }
+                )
             }
             .padding(.trailing, 24)
             .padding(.bottom, 24)
@@ -76,22 +95,18 @@ struct MainAppView: View {
                 )
                 .presentationDetents([.fraction(0.58)])
                 .presentationDragIndicator(.hidden)
+                .presentationBackground(Color.white)
             }
 
             // MARK: - Describe Meal (Text)
             .sheet(isPresented: $showDescribeMeal) {
-                DescribeMealView(isPresented: $showDescribeMeal) { analysis, name in
-                    let allergens = profileStore.profile?.allergens ?? []
-                    let diets = profileStore.profile?.diets ?? []
-                    OpenAIService().analyzeMealDescription(analysis, userAllergens: allergens, userDiets: diets) { result in
-                        DispatchQueue.main.async {
-                            switch result {
-                            case .success(let content):
-                                presentResult(analysis: content, name: name, image: nil, scanType: .text)
-                            case .failure(let error):
-                                presentResult(analysis: "Error: \(error.localizedDescription)", name: name, image: nil, scanType: .text)
-                            }
-                        }
+                DescribeMealView(isPresented: $showDescribeMeal) { analysis, name, savedEntry in
+                    if let entry = savedEntry {
+                        // Use item-based presentation: set the item and dismiss
+                        self.selectedScan = entry
+                    } else {
+                        // Fallback: decode and present using existing pathway
+                        presentResult(analysis: analysis, name: name, image: nil, scanType: .text)
                     }
                     showDescribeMeal = false
                 }
@@ -147,17 +162,89 @@ struct MainAppView: View {
                 }
             }
 
-            .sheet(isPresented: $showResultView) {
-                if let scan = selectedScan {
-                    ResultView(
-                        scan: scan,
-                        isPresented: $showResultView, // ✅ must pass this
-                        onClose: { showResultView = false }
+            .sheet(item: $selectedScan) { s in
+                ResultView(
+                    scan: s,
+                    isPresented: Binding(
+                        get: { selectedScan != nil },
+                        set: { if !$0 { selectedScan = nil } }
+                    ),
+                    onClose: { selectedScan = nil }
+                )
+                .id(s.id) // ensure a fresh ResultView per selection
+            }
+            
+            // Global First Scan Banner
+            if showFirstScanBanner {
+                GeometryReader { proxy in
+                    let safeBottom = proxy.safeAreaInsets.bottom
+                    let addButtonClearance = max(addButtonSize.height, 78)
+                    ZStack {
+                        // Tappable background to open add options
+                        Button(action: {
+                            withAnimation { showAddMealOptions = true }
+                        }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "camera.viewfinder")
+                                    .foregroundColor(.black)
+                                    .imageScale(.large)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Scan your first meal")
+                                        .font(.headline)
+                                        .foregroundColor(.black)
+                                        .lineLimit(1)
+                                        .minimumScaleFactor(0.8)
+                                    Text("Tap the green + button to get started")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(2)
+                                        .minimumScaleFactor(0.8)
+                                }
+                                Spacer(minLength: 8)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+
+                        // X dismiss button overlay
+                        HStack {
+                            Spacer()
+                            Button(action: { withAnimation { showFirstScanBanner = false } }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                                    .imageScale(.large)
+                            }
+                            .accessibilityLabel("Dismiss banner")
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.white)
+                            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 3)
                     )
+                    // Reduce width to avoid overlapping the add button on the trailing side
+                    .frame(maxWidth: min(proxy.size.width - (24 + addButtonClearance + 16), 600))
+                    .padding(.horizontal)
+                    // Place closer to the tab bar: small gap above tab bar + safe area; add minimal clearance for the button
+                    .padding(.bottom, max(2, 2 + safeBottom) + tabBarHeight - 16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .ignoresSafeArea(edges: .bottom)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        .onAppear {
+            locationManager.requestLocationPermission()
+        }
+        .onAppear {
+            showFirstScanBanner = historyManager.scans.isEmpty
+        }
+        .onChange(of: historyManager.scans.count) { _, newCount in
+            withAnimation { showFirstScanBanner = (newCount == 0) }
+        }
     }
 
     // MARK: - Present Result
@@ -188,23 +275,8 @@ struct MainAppView: View {
         // Convert CLLocationCoordinate2D -> CodableCoordinate
         let codableLocation = location.map { CodableCoordinate(coordinate: $0) }
 
-        // ✅ Create ScanEntry
-        let newScan = ScanEntry(
-            id: UUID(),
-            name: name,
-            ingredients: decodedIngredients,
-            score: decodedScore,
-            reason: decodedReason,
-            suggestions: decodedSuggestions,
-            bookmarked: false,
-            thumbnailImageData: imageData,
-            scannedDate: date,
-            scannedLocation: codableLocation,
-            scanType: scanType
-        )
-
         // Save to history
-        ScanHistoryManager.shared.addScan(
+        let savedScan = ScanHistoryManager.shared.addScan(
             name: name,
             ingredients: decodedIngredients,
             score: decodedScore,
@@ -217,7 +289,7 @@ struct MainAppView: View {
         )
 
         // Show in ResultView
-        self.selectedScan = newScan
+        self.selectedScan = savedScan
         self.showResultView = true
     }
 
@@ -242,3 +314,4 @@ struct MainAppView: View {
 
     enum Tab { case home, history, settings }
 }
+

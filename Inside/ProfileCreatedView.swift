@@ -15,6 +15,7 @@ struct ProfileCreatedView: View {
 
             Text("You're all set!")
                 .font(.system(size: 32, weight: .bold))
+                .tracking(-0.64)
                 .foregroundColor(Color("PrimaryGreen"))
 
             Text("Your profile has been created.\nYou can update your preferences anytime.")
@@ -43,4 +44,3 @@ struct ProfileCreatedView: View {
         .animation(.easeInOut, value: UUID())
     }
 }
-

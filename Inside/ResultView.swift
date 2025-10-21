@@ -178,25 +178,27 @@ struct ResultView: View {
             .padding(.horizontal)
 
             // Location
-            sectionHeader(icon: "mappin.and.ellipse", title: "Location")
-            if let location = scan.scannedLocation?.coordinate {
-                ZStack {
-                    Map(coordinateRegion: $region,
-                        interactionModes: [],
-                        showsUserLocation: false,
-                        annotationItems: [AnnotatedLocation(coordinate: region.center)]) { loc in
-                        MapMarker(coordinate: loc.coordinate, tint: Color("PrimaryGreen"))
-                    }
-                    .frame(height: 200)
-                    .cornerRadius(12)
-                    .padding(.horizontal)
+            if CLLocationManager.authorizationStatus() == .authorizedAlways || CLLocationManager.authorizationStatus() == .authorizedWhenInUse {
+                sectionHeader(icon: "mappin.and.ellipse", title: "Location")
+                if let location = scan.scannedLocation?.coordinate {
+                    ZStack {
+                        Map(coordinateRegion: $region,
+                            interactionModes: [],
+                            showsUserLocation: false,
+                            annotationItems: [AnnotatedLocation(coordinate: region.center)]) { loc in
+                            MapMarker(coordinate: loc.coordinate, tint: Color("PrimaryGreen"))
+                        }
+                        .frame(height: 200)
+                        .cornerRadius(12)
+                        .padding(.horizontal)
 
-                    Button(action: { openInAppleMaps(location: location) }) {
-                        Color.clear
+                        Button(action: { openInAppleMaps(location: location) }) {
+                            Color.clear
+                        }
+                        .frame(height: 200)
+                        .cornerRadius(12)
+                        .padding(.horizontal)
                     }
-                    .frame(height: 200)
-                    .cornerRadius(12)
-                    .padding(.horizontal)
                 }
             }
         }

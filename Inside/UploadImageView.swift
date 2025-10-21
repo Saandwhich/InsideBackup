@@ -191,6 +191,21 @@ struct UploadImageView: View {
                 case .success(let payload):
                     let (name, formattedText) = payload
                     self.mealName = name
+
+                    // Attempt to decode the AI JSON into MealVisionJSON 
+                    if let data = formattedText.data(using: .utf8),
+                       let decoded = try? JSONDecoder().decode(MealVisionJSON.self, from: data) {
+                        let ingredientsCSV = decoded.ingredients ?? ""
+                        let ingredients = ingredientsCSV
+                            .split(separator: ",")
+                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                            .filter { !$0.isEmpty }
+                        let score = decoded.safetyScore ?? 0
+                        let reason = decoded.reason ?? ""
+                        let suggestions = decoded.suggestions ?? ""
+                    }
+
+                    // Keep existing callback for compatibility with parent presentation logic
                     self.onAnalysisComplete(formattedText, name, self.selectedImage)
                 case .failure(let err):
                     self.errorMessage = friendlyError(err)

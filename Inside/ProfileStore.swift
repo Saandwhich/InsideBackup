@@ -22,22 +22,15 @@ final class ProfileStore: ObservableObject {
         }
     }
 
-    // Load profile from UserDefaults, or use default Guest profile
+    // Load profile from UserDefaults, or leave nil until a real profile is saved
     func loadProfile() {
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode(UserProfile.self, from: data) {
             self.profile = decoded
             print("✅ Loaded profile:", decoded)
         } else {
-            // Default Guest profile
-            self.profile = UserProfile(
-                name: "Guest",
-                allergens: [],
-                dietaryStruggles: [],
-                diets: [],
-                reason: ""
-            )
-            print("❌ Failed to load profile, using Guest profile")
+            self.profile = nil
+            print("ℹ️ No saved profile found (profile is nil until survey completes)")
         }
     }
 }

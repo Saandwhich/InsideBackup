@@ -14,15 +14,32 @@ struct AddMealOptionsView: View {
     var onScanBarcodeTap: () -> Void   // ✅ New callback for Scan A Barcode
 
     @State private var contentHeight: CGFloat = 0
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView {
             VStack(spacing: 12) {
-                Spacer().frame(height: 10)
+                HStack {
+                    Text("Add A Meal")
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundColor(Color("PrimaryGreen"))
+                    Spacer()
+                    Button { dismiss() } label: {
+                        ZStack {
+                            Circle()
+                                .fill(Color(.systemGray6))
+                                .frame(width: 32, height: 32)
+                            Image(systemName: "xmark")
+                                .foregroundColor(.black)
+                                .font(.system(size: 12, weight: .regular))
+                        }
+                        .padding(8)
+                    }
+                }
+                .padding(.top, 20)
+                .padding(.horizontal)
 
-                Text("Add A Meal")
-                    .font(.system(size: 24, weight: .bold))
-                    .padding(.bottom, 4)
+                Spacer().frame(height: 10)
 
                 VStack(spacing: 16) {
                     Button(action: { onTakePhotoTap() }) {
@@ -60,6 +77,7 @@ struct AddMealOptionsView: View {
         }
         .navigationTitle("")
         .navigationBarHidden(true)
+        .background(Color.white)
         .interactiveDismissDisabled(true)
     }
 

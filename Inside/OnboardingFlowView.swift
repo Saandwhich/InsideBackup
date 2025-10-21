@@ -13,7 +13,11 @@ struct OnboardingFlowView: View {
 
             case .welcome:
                 WelcomeView {
-                    withAnimation { appState.step = .survey }
+                    withAnimation {
+                        // Reset survey to first step on start
+                        SurveyManager().clearDraft() // clear any persisted draft
+                        appState.step = .survey
+                    }
                 }
 
             case .survey:
