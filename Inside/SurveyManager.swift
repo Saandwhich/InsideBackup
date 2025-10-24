@@ -108,7 +108,7 @@ class SurveyManager: ObservableObject {
             SurveyScreen(
                 title: "We Need Access To Your Camera and Photos",
                 content: "To use Inside, we’re gonna need your camera and photos to analyze your meals. You can always edit these preferences later.",
-                imageName: "BlankImage",
+                imageName: "CameraAccess",
                 subText: "Remember, Inside doesn't keep track of your data in any way.",
                 type: .camera
             )
@@ -117,7 +117,7 @@ class SurveyManager: ObservableObject {
             SurveyScreen(
                 title: "We Need Location Permission",
                 content: "If you want to keep track of where you ate your favorite meals, then click allow. You can always edit these preferences later.",
-                imageName: "BlankImage",
+                imageName: "LocationAccess",
                 subText: "Remember, Inside doesn't keep track of your data in any way.",
                 type: .location
             )

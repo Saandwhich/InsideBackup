@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import CoreLocation
 import MapKit
+import AVFoundation
 
 struct MainAppView: View {
     @State private var selectedTab: Tab = .home
@@ -24,6 +25,9 @@ struct MainAppView: View {
     @State private var showFirstScanBanner: Bool = false
     @State private var tabBarHeight: CGFloat = 0
     @State private var addButtonSize: CGSize = .zero
+
+    // Camera permission alert
+    @State private var showCameraSettingsAlert = false
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -85,12 +89,31 @@ struct MainAppView: View {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { showUploadImage = true }
                     },
                     onTakePhotoTap: {
-                        showAddMealOptions = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { showTakePhoto = true }
+                        // Check camera permission first
+                        CameraPermissionManager.checkAndRequestCamera { authorized in
+                            DispatchQueue.main.async {
+                                if authorized {
+                                    showAddMealOptions = false
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { showTakePhoto = true }
+                                } else {
+                                    // Show settings alert only if denied/restricted
+                                    showCameraSettingsAlert = (AVCaptureDevice.authorizationStatus(for: .video) == .denied || AVCaptureDevice.authorizationStatus(for: .video) == .restricted)
+                                }
+                            }
+                        }
                     },
                     onScanBarcodeTap: {
-                        showAddMealOptions = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { showBarcodeScanner = true }
+                        // Check camera permission first
+                        CameraPermissionManager.checkAndRequestCamera { authorized in
+                            DispatchQueue.main.async {
+                                if authorized {
+                                    showAddMealOptions = false
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { showBarcodeScanner = true }
+                                } else {
+                                    showCameraSettingsAlert = (AVCaptureDevice.authorizationStatus(for: .video) == .denied || AVCaptureDevice.authorizationStatus(for: .video) == .restricted)
+                                }
+                            }
+                        }
                     }
                 )
                 .presentationDetents([.fraction(0.58)])
@@ -102,10 +125,8 @@ struct MainAppView: View {
             .sheet(isPresented: $showDescribeMeal) {
                 DescribeMealView(isPresented: $showDescribeMeal) { analysis, name, savedEntry in
                     if let entry = savedEntry {
-                        // Use item-based presentation: set the item and dismiss
                         self.selectedScan = entry
                     } else {
-                        // Fallback: decode and present using existing pathway
                         presentResult(analysis: analysis, name: name, image: nil, scanType: .text)
                     }
                     showDescribeMeal = false
@@ -171,7 +192,7 @@ struct MainAppView: View {
                     ),
                     onClose: { selectedScan = nil }
                 )
-                .id(s.id) // ensure a fresh ResultView per selection
+                .id(s.id)
             }
             
             // Global First Scan Banner
@@ -180,7 +201,6 @@ struct MainAppView: View {
                     let safeBottom = proxy.safeAreaInsets.bottom
                     let addButtonClearance = max(addButtonSize.height, 78)
                     ZStack {
-                        // Tappable background to open add options
                         Button(action: {
                             withAnimation { showAddMealOptions = true }
                         }) {
@@ -206,7 +226,6 @@ struct MainAppView: View {
                         }
                         .buttonStyle(.plain)
 
-                        // X dismiss button overlay
                         HStack {
                             Spacer()
                             Button(action: { withAnimation { showFirstScanBanner = false } }) {
@@ -224,10 +243,8 @@ struct MainAppView: View {
                             .fill(Color.white)
                             .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 3)
                     )
-                    // Reduce width to avoid overlapping the add button on the trailing side
                     .frame(maxWidth: min(proxy.size.width - (24 + addButtonClearance + 16), 600))
                     .padding(.horizontal)
-                    // Place closer to the tab bar: small gap above tab bar + safe area; add minimal clearance for the button
                     .padding(.bottom, max(2, 2 + safeBottom) + tabBarHeight - 16)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                     .ignoresSafeArea(edges: .bottom)
@@ -244,6 +261,16 @@ struct MainAppView: View {
         }
         .onChange(of: historyManager.scans.count) { _, newCount in
             withAnimation { showFirstScanBanner = (newCount == 0) }
+        }
+        .alert("Camera access is required", isPresented: $showCameraSettingsAlert) {
+            Button("Open Settings") {
+                if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(settingsURL)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Please allow camera access in Settings to use this feature.")
         }
     }
 
@@ -269,13 +296,9 @@ struct MainAppView: View {
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         }
 
-        // Convert UIImage -> Data
         let imageData = image?.jpegData(compressionQuality: 0.8)
-
-        // Convert CLLocationCoordinate2D -> CodableCoordinate
         let codableLocation = location.map { CodableCoordinate(coordinate: $0) }
 
-        // Save to history
         let savedScan = ScanHistoryManager.shared.addScan(
             name: name,
             ingredients: decodedIngredients,
@@ -288,7 +311,6 @@ struct MainAppView: View {
             scanType: scanType
         )
 
-        // Show in ResultView
         self.selectedScan = savedScan
         self.showResultView = true
     }
@@ -315,3 +337,21 @@ struct MainAppView: View {
     enum Tab { case home, history, settings }
 }
 
+// MARK: - Camera Permission Manager
+enum CameraPermissionManager {
+    static func checkAndRequestCamera(completion: @escaping (Bool) -> Void) {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        switch status {
+        case .authorized:
+            completion(true)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                completion(granted)
+            }
+        case .denied, .restricted:
+            completion(false)
+        @unknown default:
+            completion(false)
+        }
+    }
+}

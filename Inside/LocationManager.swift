@@ -8,24 +8,26 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
     @Published var userLocation: CLLocation?
 
     private let manager = CLLocationManager()
-    private let requestedKey = "locationPermissionRequested"
 
     private override init() {
         super.init()
         manager.delegate = self
     }
 
+    // Call when the user taps "Continue" on your explainer or when a feature needs location.
     func requestLocationPermission() {
         let status = manager.authorizationStatus
-        let hasRequested = UserDefaults.standard.bool(forKey: requestedKey)
-
-        if !hasRequested && status == .notDetermined {
+        switch status {
+        case .notDetermined:
             manager.requestWhenInUseAuthorization()
-            UserDefaults.standard.set(true, forKey: requestedKey)
-        } else if status == .authorizedWhenInUse || status == .authorizedAlways {
+        case .authorizedWhenInUse, .authorizedAlways:
             manager.startUpdatingLocation()
+        case .denied, .restricted:
+            // Present a Settings link elsewhere when feature is needed.
+            break
+        @unknown default:
+            break
         }
-        // else: denied, do nothing
     }
 
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
@@ -38,3 +40,4 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         userLocation = locations.last
     }
 }
+

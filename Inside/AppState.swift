@@ -31,7 +31,7 @@ class AppState: ObservableObject {
         if let _ = UserDefaults.standard.data(forKey: "userData") {
             step = .mainApp
         } else {
-            step = .splash // new user starts onboarding
+            step = .welcome // start new users at Welcome (no splash)
         }
     }
 }

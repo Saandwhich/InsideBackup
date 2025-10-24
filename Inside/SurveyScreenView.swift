@@ -65,7 +65,6 @@ struct SurveyScreenView: View {
 
                     // Terms agreement section (only on terms screen)
                     if screen.title.lowercased().contains("terms") {
-                        // Checkbox-style toggle
                         Button(action: {
                             UISelectionFeedbackGenerator().selectionChanged()
                             hasAgreedToTerms.toggle()
@@ -82,7 +81,6 @@ struct SurveyScreenView: View {
                         }
                         .padding(.horizontal, 24)
 
-                        // Quick links to documents
                         HStack(spacing: 16) {
                             Link(destination: URL(string: "https://insideapp.framer.ai/terms-of-use-and-disclaimer")!) {
                                 Text("View Terms of Use")
@@ -113,7 +111,6 @@ struct SurveyScreenView: View {
 
             // Bottom Buttons with reserved subtext space to keep buttons pinned consistently
             VStack(spacing: 0) {
-                // Fixed button bar height ensures buttons never move
                 VStack(spacing: 0) {
                     HStack(spacing: 16) {
                         // Back Button
@@ -134,13 +131,13 @@ struct SurveyScreenView: View {
 
                         Spacer(minLength: 0)
 
-                        // Continue Button (changes based on screen)
+                        // Permission screens use neutral "Continue" and always proceed to the system prompt.
                         if screen.title.contains("Camera") {
                             Button(action: {
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                                 requestCameraAccess()
                             }) {
-                                Text("Allow Camera Access")
+                                Text("Continue")
                                     .fontWeight(.bold)
                                     .foregroundColor(.white)
                                     .frame(height: 52)
@@ -149,33 +146,17 @@ struct SurveyScreenView: View {
                                     .cornerRadius(32)
                             }
                         } else if screen.title.contains("Location") {
-                            HStack(spacing: 16) {
-                                Button(action: {
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                    requestLocationAccess()
-                                }) {
-                                    Text("Enable")
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.white)
-                                        .frame(height: 52)
-                                        .frame(maxWidth: .infinity)
-                                        .background(Color("PrimaryGreen"))
-                                        .cornerRadius(32)
-                                }
-
-                                Button(action: {
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                    // Skip location, go forward
-                                    manager.nextStep()
-                                }) {
-                                    Text("Not Now")
-                                        .fontWeight(.medium)
-                                        .foregroundColor(Color("PrimaryGreen"))
-                                        .frame(height: 52)
-                                        .frame(maxWidth: .infinity)
-                                        .background(Color(.systemGray6))
-                                        .cornerRadius(32)
-                                }
+                            Button(action: {
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                requestLocationAccess()
+                            }) {
+                                Text("Continue")
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                    .frame(height: 52)
+                                    .frame(maxWidth: .infinity)
+                                    .background(Color("PrimaryGreen"))
+                                    .cornerRadius(32)
                             }
                         } else {
                             // Default continue/finish with terms gating
@@ -234,21 +215,25 @@ struct SurveyScreenView: View {
 
     // MARK: - Permissions
     private func requestCameraAccess() {
+        // Always proceed to the system prompt when user taps Continue
         AVCaptureDevice.requestAccess(for: .video) { granted in
             DispatchQueue.main.async {
-                if granted {
-                    manager.nextStep()
-                } else {
-                    showSettingsAlert = true
+                // Proceed in the flow either way
+                self.manager.nextStep()
+                // Optional: keep this alert only for context if they denied
+                if !granted {
+                    self.showSettingsAlert = true
                 }
             }
         }
     }
 
     private func requestLocationAccess() {
-        locationManager.requestLocation { granted in
+        // Always proceed to the system prompt when user taps Continue
+        locationManager.requestLocation { _ in
             DispatchQueue.main.async {
-                manager.nextStep() // continue regardless
+                // Proceed to next onboarding step regardless of user choice
+                self.manager.nextStep()
             }
         }
     }
@@ -266,16 +251,34 @@ class LocationPermissionManager: NSObject, ObservableObject, CLLocationManagerDe
 
     func requestLocation(completion: @escaping (Bool) -> Void) {
         self.completion = completion
-        manager.requestWhenInUseAuthorization()
+        let status = manager.authorizationStatus
+        switch status {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .authorizedWhenInUse, .authorizedAlways:
+            completion(true)
+            self.completion = nil
+        case .denied, .restricted:
+            completion(false)
+            self.completion = nil
+        @unknown default:
+            completion(false)
+            self.completion = nil
+        }
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         switch manager.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways:
             completion?(true)
-        default:
+        case .denied, .restricted:
+            completion?(false)
+        case .notDetermined:
+            return
+        @unknown default:
             completion?(false)
         }
         completion = nil
     }
 }
+

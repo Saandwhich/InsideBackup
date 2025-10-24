@@ -6,10 +6,6 @@ struct OnboardingFlowView: View {
     var body: some View {
         ZStack {
             switch appState.step {
-            case .splash:
-                SplashScreenView {
-                    withAnimation { appState.step = .welcome }
-                }
 
             case .welcome:
                 WelcomeView {

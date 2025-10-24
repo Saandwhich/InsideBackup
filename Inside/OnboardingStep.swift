@@ -1,7 +1,6 @@
 import Foundation
 
 enum OnboardingStep: Equatable {
-    case splash
     case welcome
     case survey
     case doneSurvey
